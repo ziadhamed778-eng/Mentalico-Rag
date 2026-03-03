@@ -1,0 +1,11 @@
+langchain
+langchain-community
+chromadb
+pypdf
+unstructured
+markdown
+sentence-transformers
+gradio
+langchain-core==0.2.43
+langchain-groq==0.1.10
+langchain-community==0.2.19

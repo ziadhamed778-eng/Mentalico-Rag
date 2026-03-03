@@ -1,0 +1,13 @@
+# Virtual Environment
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Vector Database (عشان حجمها بيكبر ومبتترفعش)
+chroma_db/
+
+# API Keys & Secrets (عشان مفتاح Groq بتاعك ميتسرقش لو حطيته في ملف .env)
+.env
