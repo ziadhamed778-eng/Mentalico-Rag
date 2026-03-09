@@ -16,7 +16,7 @@ vector_db = Chroma(persist_directory="./chroma_db", embedding_function=embedding
 retriever = vector_db.as_retriever(search_kwargs={"k": 3})
 
 # 3. Set up the Language Model (LLM) using Groq
-os.environ["GROQ_API_KEY"] = "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"
+os.environ["GROQ_API_KEY"] = "*************************"
 
 llm = ChatGroq(
     model="llama-3.3-70b-versatile", 
