@@ -33,7 +33,7 @@ def build_vector_database():
         persist_directory="./chroma_db"
     )
     
-    print(" Vector Database successfully created! You can now run app.py")
+    print(" Vector Database successfully created!")
 
 if __name__ == "__main__":
     build_vector_database()
