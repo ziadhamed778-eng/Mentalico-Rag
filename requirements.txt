@@ -1,11 +1,15 @@
-langchain
-langchain-community
-chromadb
-pypdf
-unstructured
-markdown
-sentence-transformers
-gradio
+# --- Core LangChain & Vector DB ---
 langchain-core==0.2.43
-langchain-groq==0.1.10
 langchain-community==0.2.19
+langchain-groq==0.1.10
+langsmith==0.1.147
+chromadb
+
+# --- Embeddings ---
+sentence-transformers
+
+# --- Document Loading ---
+pypdf
+
+# --- UI / Frontend ---
+gradio
