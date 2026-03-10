@@ -1,13 +1,21 @@
-# Virtual Environment
-venv/
-env/
+# Secrets — NEVER commit these
+.env
 
-# Python Cache
-__pycache__/
-*.pyc
-
-# Vector Database (عشان حجمها بيكبر ومبتترفعش)
+# Vector database (large binary files)
 chroma_db/
 
-# API Keys & Secrets (عشان مفتاح Groq بتاعك ميتسرقش لو حطيته في ملف .env)
-.env
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Uploaded test data (optional — remove if you want to track them)
+test data/
