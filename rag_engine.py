@@ -10,7 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from groq import Groq
 from dotenv import load_dotenv
 
-#1: Load API Key from .env file 
+#Load API Key from .env file 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
