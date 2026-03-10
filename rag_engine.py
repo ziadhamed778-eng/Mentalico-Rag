@@ -7,20 +7,40 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from groq import Groq
+from dotenv import load_dotenv
+
+#1: Load API Key from .env file (never hardcode secrets)
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    raise EnvironmentError(
+        "GROQ_API_KEY not found! Please create a .env file with: GROQ_API_KEY=your_key_here"
+    )
+os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+
+#2: Check if ChromaDB exists before loading (prevents crash if ingest.py wasn't run)
+CHROMA_DB_PATH = "./chroma_db"
+if not os.path.exists(CHROMA_DB_PATH):
+    raise FileNotFoundError(
+        "ChromaDB not found! Please run ingest.py first to build the vector database."
+    )
 
 # 1. Load local free Embeddings
 embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 # 2. Connect to the ChromaDB vector database
-vector_db = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
-retriever = vector_db.as_retriever(search_kwargs={"k": 3})
+vector_db = Chroma(persist_directory=CHROMA_DB_PATH, embedding_function=embeddings)
 
-# 3. Set up the Language Model (LLM) using Groq
-os.environ["GROQ_API_KEY"] = "*************************"
+retriever = vector_db.as_retriever(search_kwargs={"k": 6})
+
+# 3. Initialize Groq clients
+groq_client = Groq(api_key=GROQ_API_KEY)
 
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile", 
-    temperature=0
+    model="llama-3.3-70b-versatile",
+    temperature=0,
+    streaming=True
 )
 
 # 4. Build the Prompt
@@ -35,54 +55,93 @@ system_prompt = (
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
-    ("human", "{input}"),
+    ("human", "Previous Conversation History:\n{chat_history}\n\nPatient's New Message: {input}"),
 ])
 
-# 5. Create the Chain
-question_answer_chain = create_stuff_documents_chain(llm, prompt)
-rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+# 5. Helper to rebuild the RAG chain (needed after adding new PDFs)
+def _build_rag_chain():
+    question_answer_chain = create_stuff_documents_chain(llm, prompt)
+    return create_retrieval_chain(retriever, question_answer_chain)
 
-# 6. Generate Answer Function 
-def generate_answer(user_query, return_raw_rag=False):
+rag_chain = _build_rag_chain()
+
+# 6. Audio Transcription Function
+def transcribe_audio(audio_file_path):
     try:
-        # لو الواجهة باعتة True، هيرجع النص الخام
-        if return_raw_rag:
-            docs = retriever.invoke(user_query)
-            
-            if not docs:
-                return "I could not find any information related to your question in the database."
-            
-            raw_response = " **Here is the extracted information directly from the documents:**\n\n"
-            for i, doc in enumerate(docs):
-                raw_response += f"**[Excerpt {i+1}]:**\n{doc.page_content}\n\n---\n"
-            
-            return raw_response
-            
-        else:
-            # هنا بقى الرد الاحترافي بتاع الدكتور Mentallico
-            response = rag_chain.invoke({"input": user_query})
-            return response["answer"]
-            
+        with open(audio_file_path, "rb") as file:
+            transcription = groq_client.audio.transcriptions.create(
+                file=(audio_file_path, file.read()),
+                model="whisper-large-v3"
+            )
+        return transcription.text
     except Exception as e:
-        return f"An error occurred while connecting to the model. Error: {str(e)}"
+        return f"Error transcribing audio: {str(e)}"
 
-# 7. Process New PDF Function (تم فصلها وضبط المسافات)
+def generate_answer(user_query, history_list=None):
+    """
+    Generates a streaming answer from the RAG chain.
+    Yields response tokens one by one for real-time display in Gradio.
+    """
+    if history_list is None:
+        history_list = []
+
+    try:
+        MAX_HISTORY = 10
+        recent_history = history_list[-MAX_HISTORY:]
+
+        chat_history_str = ""
+        for msg in recent_history:
+            if msg[0] and msg[1]:  # safety check: skip incomplete messages
+                chat_history_str += f"Patient: {msg[0]}\nMentallico: {msg[1]}\n"
+
+        full_response = ""
+        for chunk in rag_chain.stream({
+            "input": user_query,
+            "chat_history": chat_history_str
+        }):
+            # The answer key arrives in chunks
+            if "answer" in chunk:
+                token = chunk["answer"]
+                full_response += token
+                yield full_response  # yield partial response for Gradio streaming
+
+    except Exception as e:
+        yield f"An error occurred while connecting to the model. Error: {str(e)}"
+
+
+# 8. Process New PDF Function
 def process_new_pdf(file_path):
+    """
+    Loads a new PDF, splits it, adds it to the vector DB,
+    and refreshes the retriever & RAG chain so new content is immediately queryable.
+    """
+    global retriever, rag_chain
+
     try:
         if file_path is None:
             return "Please select a file first."
-            
-        # 1. قراءة الملف
+
         loader = PyPDFLoader(file_path)
         docs = loader.load()
-        
-        # 2. تقطيع الملف (Chunking)
+
+        if not docs:
+            return "The PDF appears to be empty or unreadable."
+
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = text_splitter.split_documents(docs)
-        
-        # 3. إضافة القطع لقاعدة البيانات الحالية
+
+        # Add to vector DB
         vector_db.add_documents(chunks)
-        
-        return f"Successfully processed and learned from the new PDF ({len(chunks)} chunks added)."
+
+        # Refresh retriever & RAG chain so new docs are included in future queries
+        retriever = vector_db.as_retriever(search_kwargs={"k": 6})
+        rag_chain = _build_rag_chain()
+
+        return (
+            f" Successfully processed '{os.path.basename(file_path)}'.\n"
+            f" {len(docs)} pages → {len(chunks)} chunks added to the knowledge base.\n"
+            f" Knowledge base updated and ready!"
+        )
+
     except Exception as e:
-        return f"Error processing file: {str(e)}"
+        return f" Error processing file: {str(e)}"
