@@ -53,5 +53,5 @@ To test the Mentallico RAG system, please follow these steps carefully:
 
 ### Features to Try in the UI:
 - **Text Chat:** Ask complex medical questions based on the uploaded literature.
-- **Voice Chat 🎙️:** Use the microphone to speak your symptoms directly to the AI in English or Arabic.
-- **Dynamic Upload 📥:** Upload new medical records or research papers directly from the UI to instantly expand Mentallico's knowledge base on the fly!
+- **Voice Chat :** Use the microphone to speak your symptoms directly to the AI in English or Arabic.
+- **Dynamic Upload :** Upload new medical records or research papers directly from the UI to instantly expand Mentallico's knowledge base on the fly!
