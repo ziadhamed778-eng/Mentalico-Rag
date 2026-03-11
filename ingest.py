@@ -11,7 +11,6 @@ DATA_DIR = "test data"
 CHROMA_DB_PATH = "./chroma_db"
 
 def build_vector_database():
-    # Validate data directory exists before proceeding
     if not os.path.exists(DATA_DIR):
         print(f" Error: The folder '{DATA_DIR}' does not exist.")
         print("Please create it and add your PDF files, then run this script again.")
